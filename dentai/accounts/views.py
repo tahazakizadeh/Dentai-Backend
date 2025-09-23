@@ -22,7 +22,9 @@ from django.contrib.auth import get_user_model
 import random, string
 from kavenegar import KavenegarAPI, APIException, HTTPException
 from django.conf import settings
-
+import pandas as pd
+from io import BytesIO
+import openpyxl
 
 # لیست و پروفایل بیماران
 class PatientViewSet(viewsets.ModelViewSet):
@@ -165,6 +167,95 @@ class PatientMiniDetailView(APIView):
         except Patient.DoesNotExist:
             return Response({"error": "بیمار یافت نشد."}, status=404)
 
+class ExportPatientsExcelView(APIView):
+    def get(self, request):
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Patients"
+
+        # ────── هدرها ──────
+        headers = [
+            # User
+            "PatientID", "UserID", "Username", "First Name", "Last Name",
+            "Phone Number", "National ID",
+
+            # Personal Info
+            "Birth Date", "Gender", "Occupation", "Landline", "Mobile", "Address",
+            "Relative Job", "Record Completion Date", "Record Number",
+            "Has Diabetes", "Has Heart Disease", "Has Tonsil Issue", "Has Blood Disease",
+            "Has Allergy", "Has Lung Disease", "Has History of Hospitalization",
+            "Other Diseases", "Current Medications",
+
+            # Treatment Consent
+            "Relationship With Patient", "Treatment Consent", "Consent Date",
+
+            # Clinical Evaluation
+            "Problem List", "Treatment Plan", "Retention Plan", "System Used",
+            "Crowding", "Protrusion Lips", "Molars", "Bite", "Midline",
+            "Gingival Show", "Shift", "Dual Bite"
+        ]
+        ws.append(headers)
+
+        # ────── دیتا ──────
+        patients = Patient.objects.select_related("user").all()
+        for p in patients:
+            ws.append([
+                # User
+                p.id,
+                p.user.id,
+                p.user.username,
+                p.user.first_name,
+                p.user.last_name,
+                p.user.phone_number,
+                p.user.national_id,
+
+                # Personal Info
+                p.birth_date.strftime("%Y-%m-%d") if p.birth_date else "",
+                p.gender,
+                p.occupation,
+                p.landline,
+                p.phone,
+                p.address,
+                p.relative_job,
+                p.record_completion_date.strftime("%Y-%m-%d") if p.record_completion_date else "",
+                p.record_number,
+                "Yes" if p.has_diabetes else "No",
+                "Yes" if p.has_heart_disease else "No",
+                "Yes" if p.has_tonsil_issue else "No",
+                "Yes" if p.has_blood_disease else "No",
+                "Yes" if p.has_allergy else "No",
+                "Yes" if p.has_lung_disease else "No",
+                "Yes" if p.has_history_of_hospitalization else "No",
+                p.other_diseases,
+                p.current_medications,
+
+                # Treatment Consent
+                p.relationship_with_patient,
+                "Yes" if p.treatment_consent else "No",
+                p.consent_date.strftime("%Y-%m-%d") if p.consent_date else "",
+
+                # Clinical Evaluation
+                p.problem_list,
+                p.treatment_plan,
+                p.retention_plan,
+                p.system_used,
+                p.crowding,
+                p.protrusion_lips,
+                p.molars,
+                p.bite,
+                p.midline,
+                p.gingival_show,
+                p.shift,
+                p.dual_bite,
+            ])
+
+        # ────── خروجی اکسل ──────
+        response = HttpResponse(
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+        response["Content-Disposition"] = 'attachment; filename="patients.xlsx"'
+        wb.save(response)
+        return response
 
 
 class CreateAdminUserView(APIView):
