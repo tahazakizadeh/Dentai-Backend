@@ -1,6 +1,6 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import PatientViewSet, StaffLoginView, RequestOTPView, VerifyOTPView, PatientSearchView, PhoneNumberExistsView, PatientMiniDetailView, CreateAdminUserView
+from .views import PatientViewSet, StaffLoginView, RequestOTPView, VerifyOTPView, PatientSearchView, PhoneNumberExistsView, PatientMiniDetailView, CreateAdminUserView, ExportPatientsExcelView
 
 
 router = DefaultRouter()
