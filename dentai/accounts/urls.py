@@ -13,6 +13,7 @@ urlpatterns = [
     path('auth/verify-otp/', VerifyOTPView.as_view()),
     path('patients/search/', PatientSearchView.as_view(), name='patient-search'),
     path('check-phone/', PhoneNumberExistsView.as_view(), name='check-phone'),
+    path("patients/export-excel/", ExportPatientsExcelView.as_view(), name="patients-export-excel"),
     path("create-admin/", CreateAdminUserView.as_view()),
     path('', include(router.urls)),
 ]
