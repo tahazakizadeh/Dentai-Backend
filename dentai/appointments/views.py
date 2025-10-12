@@ -17,6 +17,15 @@ import time
 import logging
 from kavenegar import KavenegarAPI, APIException, HTTPException
 from django.conf import settings
+import jdatetime
+
+def to_persian_date_str(date_str):
+    # تبدیل رشته به datetime
+    gregorian_date = datetime.strptime(date_str, "%d-%m-%Y").date()
+    # تبدیل به شمسی
+    persian_date = jdatetime.date.fromgregorian(date=gregorian_date)
+    # فرمت خروجی: روز-ماه-سال
+    return persian_date.strftime("%d-%m-%Y")
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +35,7 @@ def send_appointment_sms(patient, date, time):
         phone=patient.user.phone_number
         phone = "+98" + phone[1:]             
         name="مراجع"
-        date_str = str(date)
+        date_str = to_persian_date_str(str(date))
         time_str = str(time)
         phone_str=str(phone)
         params = {
