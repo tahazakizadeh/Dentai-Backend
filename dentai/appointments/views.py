@@ -48,9 +48,10 @@ def send_appointment_sms(patient, date, time):
             'type': 'sms'  # یا voice برای تماس صوتی
         }
         api.verify_lookup(params)
+        return True
     except Exception as e:
         print("Unexpected error:", str(e))
-
+        return False
 
 
 
