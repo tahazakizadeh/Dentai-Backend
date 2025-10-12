@@ -26,6 +26,10 @@ def send_appointment_sms(patient, date, time, treatment_type):
         phone=patient.user.phone_number
         phone = "+98" + phone[1:]
         print (phone)
+        print(patient)
+        print(date)
+        print(time)
+        print(patient.user.get_full_name())
         params = {
             'sender' : '2000660110',
             'receptor': phone,
