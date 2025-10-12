@@ -1,4 +1,3 @@
-# appointments/views.py
 
 from rest_framework import viewsets
 from rest_framework.views import APIView,status
@@ -14,6 +13,30 @@ from rest_framework.generics import get_object_or_404
 from datetime import datetime
 from django.utils.timezone import now
 from fuzzywuzzy import process
+
+import logging
+from kavenegar import KavenegarAPI, APIException, HTTPException
+from django.conf import settings
+
+logger = logging.getLogger(__name__)
+
+def send_appointment_sms(patient, date, time, treatment_type):
+    try:
+        api = KavenegarAPI(settings.KAVENEGAR_API_KEY)
+        params = {
+            'sender' : '2000660110',
+            'receptor': patient.user.phone_number,
+            'token': patient,
+            'token2': date,
+            'token3': time,
+            'template': 'SMS1',
+            'type': 'sms'  # یا voice برای تماس صوتی
+        }
+        api.verify_lookup(params)
+    except (APIException, HTTPException) as e:
+        print("SMS Error:", str(e))
+        return Response({"error": "خطا در ارسال پیامک"}, status=500)
+
 
 
 class AppointmentViewSet(viewsets.ModelViewSet):
@@ -81,6 +104,10 @@ class BatchAppointmentAddView(APIView):
                 status='waiting',
                 date=date
             )
+ 
+            sms_sent = send_appointment_sms(patient, date.strftime('%Y-%m-%d'), predicted_start_str, treatment_type)
+            if not sms_sent:
+                logger.warning(f"Failed to send SMS for appointment {appt.id}")
 
             current_time += timedelta(minutes=duration)
             scheduled.append(appt)
