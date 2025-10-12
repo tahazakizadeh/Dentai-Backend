@@ -13,7 +13,7 @@ from rest_framework.generics import get_object_or_404
 from datetime import datetime
 from django.utils.timezone import now
 from fuzzywuzzy import process
-
+import time
 import logging
 from kavenegar import KavenegarAPI, APIException, HTTPException
 from django.conf import settings
@@ -25,12 +25,7 @@ def send_appointment_sms(patient, date, time):
         api = KavenegarAPI(settings.KAVENEGAR_API_KEY)
         phone=patient.user.phone_number
         phone = "+98" + phone[1:]
-        print (type(phone))
-        print(type(patient))
-        print(type(date))
-        print(type(time))
-        print(type(patient.user.get_full_name()))
-        name=str(patient.user.username)
+        name=str(patient.user.get_full_name().strip())
         date_str = str(date)
         time_str = str(time)
         phone_str=str(phone)
@@ -118,6 +113,7 @@ class BatchAppointmentAddView(APIView):
             )
  
             sms_sent = send_appointment_sms(patient, date.strftime('%Y-%m-%d'), predicted_start_str)
+            time.sleep(5)
             if not sms_sent:
                 logger.warning(f"Failed to send SMS for appointment {appt.id}")
 
