@@ -30,13 +30,16 @@ def send_appointment_sms(patient, date, time):
         print(type(date))
         print(type(time))
         print(type(patient.user.get_full_name()))
-        name=patient.user.get_full_name()
+        name=str(patient.user.username)
+        date_str = str(date)
+        time_str = str(time)
+        phone_str=str(phone)
         params = {
             'sender' : '2000660110',
-            'receptor': str(phone),
-            'token': str(name),
-            'token2': str(date),
-            'token3': str(time),
+            'receptor':phone_str,
+            'token':name,
+            'token2':date_str,
+            'token3':time_str,
             'template': 'SMS1',
             'type': 'sms'  # یا voice برای تماس صوتی
         }
