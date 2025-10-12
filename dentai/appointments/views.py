@@ -20,7 +20,7 @@ from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
-def send_appointment_sms(patient, date, time, treatment_type):
+def send_appointment_sms(patient, date, time):
     try:
         api = KavenegarAPI(settings.KAVENEGAR_API_KEY)
         phone=patient.user.phone_number
@@ -30,10 +30,11 @@ def send_appointment_sms(patient, date, time, treatment_type):
         print(type(date))
         print(type(time))
         print(type(patient.user.get_full_name()))
+        name=patient.user.get_full_name()
         params = {
             'sender' : '2000660110',
             'receptor': phone,
-            'token': patient,
+            'token': name,
             'token2': date,
             'token3': time,
             'template': 'SMS1',
@@ -43,6 +44,7 @@ def send_appointment_sms(patient, date, time, treatment_type):
     except (APIException, HTTPException) as e:
         print("SMS Error:", str(e))
         return Response({"error": "خطا در ارسال پیامک"}, status=500)
+
 
 
 
@@ -112,7 +114,7 @@ class BatchAppointmentAddView(APIView):
                 date=date
             )
  
-            sms_sent = send_appointment_sms(patient, date.strftime('%Y-%m-%d'), predicted_start_str, treatment_type)
+            sms_sent = send_appointment_sms(patient, date.strftime('%Y-%m-%d'), predicted_start_str)
             if not sms_sent:
                 logger.warning(f"Failed to send SMS for appointment {appt.id}")
 
