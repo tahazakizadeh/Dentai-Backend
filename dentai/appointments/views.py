@@ -25,7 +25,11 @@ def send_appointment_sms(patient, date, time):
         api = KavenegarAPI(settings.KAVENEGAR_API_KEY)
         phone=patient.user.phone_number
         phone = "+98" + phone[1:]
-        name = f"{patient.user.first_name} {patient.user.last_name}".strip()
+        if patient.gender =='male':
+            title='آقای '
+        else:
+            title='خانم '                 
+        name=title+(patient.user.last_name)
         date_str = str(date)
         time_str = str(time)
         phone_str=str(phone)
