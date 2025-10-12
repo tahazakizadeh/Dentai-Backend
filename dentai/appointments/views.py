@@ -21,11 +21,11 @@ import jdatetime
 
 def to_persian_date_str(date_str):
     # تبدیل رشته به datetime
-    gregorian_date = datetime.strptime(date_str, "%d-%m-%Y").date()
+    gregorian_date = datetime.strptime(date_str, "%Y-%m-%d").date()
     # تبدیل به شمسی
     persian_date = jdatetime.date.fromgregorian(date=gregorian_date)
     # فرمت خروجی: روز-ماه-سال
-    return persian_date.strftime("%d-%m-%Y")
+    return persian_date.strftime("%Y-%m-%d")
 
 logger = logging.getLogger(__name__)
 
