@@ -42,8 +42,7 @@ def send_appointment_sms(patient, date, time):
         }
         api.verify_lookup(params)
     except (APIException, HTTPException) as e:
-        print("SMS Error:", str(e))
-        return Response({"error": "خطا در ارسال پیامک"}, status=500)
+        logger.error(f"SMS Error: {str(e)}")
 
 
 
