@@ -25,11 +25,11 @@ def send_appointment_sms(patient, date, time, treatment_type):
         api = KavenegarAPI(settings.KAVENEGAR_API_KEY)
         phone=patient.user.phone_number
         phone = "+98" + phone[1:]
-        print (phone)
-        print(patient)
-        print(date)
-        print(time)
-        print(patient.user.get_full_name())
+        print (type(phone))
+        print(type(patient))
+        print(type(date))
+        print(type(time))
+        print(type(patient.user.get_full_name()))
         params = {
             'sender' : '2000660110',
             'receptor': phone,
