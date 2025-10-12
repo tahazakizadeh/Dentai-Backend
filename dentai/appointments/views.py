@@ -23,10 +23,12 @@ logger = logging.getLogger(__name__)
 def send_appointment_sms(patient, date, time, treatment_type):
     try:
         api = KavenegarAPI(settings.KAVENEGAR_API_KEY)
-        print (patient.user.phone_number)
+        phone=patient.user.phone_number
+        phone = "+98" + phone[1:]
+        print (phone)
         params = {
             'sender' : '2000660110',
-            'receptor': patient.user.phone_number,
+            'receptor': phone,
             'token': patient,
             'token2': date,
             'token3': time,
