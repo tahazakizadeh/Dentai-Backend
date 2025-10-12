@@ -41,8 +41,9 @@ def send_appointment_sms(patient, date, time):
             'type': 'sms'  # یا voice برای تماس صوتی
         }
         api.verify_lookup(params)
-    except (APIException, HTTPException) as e:
-        logger.error(f"SMS Error: {str(e)}")
+    except Exception as e:
+        print("Unexpected error:", str(e))
+
 
 
 
