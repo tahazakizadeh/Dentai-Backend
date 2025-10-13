@@ -8,7 +8,7 @@ from django.conf import settings
 from .models import EducationItem
 from .serializers import EducationItemSerializer
 import os
-
+from django.core.exceptions import RequestDataTooBig
 
 class EducationItemViewSet(viewsets.ModelViewSet):
     queryset = EducationItem.objects.all().order_by('-created_at')
@@ -36,13 +36,30 @@ class EducationItemViewSet(viewsets.ModelViewSet):
         
     # ✅ Override create
     def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        self.perform_create(serializer)
-        return Response({
-            "message": "فایل آموزشی با موفقیت اضافه شد.",
-            "data": serializer.data
-        }, status=status.HTTP_201_CREATED)
+        try:
+            file_obj = request.FILES.get('file')
+            max_upload_size = 100 * 1024 * 1024  # 50 MB
+            if file_obj and file_obj.size > max_upload_size:
+                return Response(
+                    {"error": f"حجم فایل بیش از حد مجاز است. حداکثر حجم مجاز {max_upload_size / (1024*1024)} مگابایت است."},
+                    status=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE
+                )
+
+            serializer = self.get_serializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            self.perform_create(serializer)
+            return Response({
+                "message": "فایل آموزشی با موفقیت اضافه شد.",
+                "data": serializer.data
+            }, status=status.HTTP_201_CREATED)
+
+        except RequestDataTooBig:
+            return Response(
+                {"error": f"حجم فایل بیش از حد مجاز است. حداکثر حجم مجاز {max_upload_size / (1024*1024)} مگابایت است."},
+                status=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE
+            )
+        except Exception as e:
+            return Response({"error": f"خطا در آپلود فایل: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     # ✅ Override update
     def update(self, request, *args, **kwargs):
