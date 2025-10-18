@@ -15,6 +15,12 @@ def time_to_minutes(t):
         print(f"Invalid time format: {t!r} -> {e}")
         return None
 
+# یکسان‌سازی املای "نامرئی" برای جلوگیری از تفاوت‌ها (بدون چک اضافی)
+df['نوع درمان'] = df['نوع درمان'].str.replace('نامریی', 'نامرئی').str.strip()
+
+# فیکس دستی و صددرصدی طول درمان به 60 دقیقه برای تمام موارد "شروع ارتودنسی نامرئی" بدون هیچ شرطی
+mask = df['نوع درمان'].str.contains('شروع ارتودنسی نامرئی', na=False)
+df.loc[mask, 'طول درمان (دقیقه)'] = 60
 
 df = df[df['طول درمان (دقیقه)'] > 0].copy()
 
@@ -36,3 +42,4 @@ with open('treatment_encoder_v2.pkl', 'wb') as f:
     pickle.dump(le, f)
 
 print("saved")
+
