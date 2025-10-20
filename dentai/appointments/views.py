@@ -18,6 +18,7 @@ import logging
 from kavenegar import KavenegarAPI, APIException, HTTPException
 from django.conf import settings
 import jdatetime
+import numpy as np
 
 def to_persian_date_str(date_str):
     # تبدیل رشته به datetime
@@ -70,7 +71,26 @@ with open('ai/duration_predictor_model_v2.pkl', 'rb') as f:
 
 with open('ai/treatment_encoder_v2.pkl', 'rb') as f:
     encoder = pickle.load(f)
+    
+class TreatmentDurationListView(APIView):
+    permission_classes = [IsAuthenticated]
 
+    def get(self, request):
+        # گرفتن تمام نوع درمان‌ها از انکدر
+        all_treatments = encoder.classes_
+        results = []
+
+        for treatment in all_treatments:
+            encoded = encoder.transform([treatment])[0]
+            start_minutes = 0  # مدل به این مقدار وابسته نیست
+            predicted = model.predict(np.array([[start_minutes, encoded]]))[0]
+            results.append({
+                "treatment_type": treatment,
+                "predicted_duration": round(float(predicted), 2)
+            })
+
+        return Response(results)
+        
 def predict_duration(treatment_type):
     treatment_type = treatment_type.strip()
 
