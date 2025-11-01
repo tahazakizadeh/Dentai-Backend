@@ -22,6 +22,9 @@ class Appointment(models.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='waiting')
     date = models.DateField()
     doctor_note = models.TextField(blank=True, null=True)  # یادداشت پزشک
+    real_status = models.CharField(max_length=20, default='waiting')  
+    logical_status = models.CharField(max_length=20, default='active')
+    skip_reason = models.CharField(max_length=100, null=True, blank=True)
 
     def __str__(self):
         return f"{self.patient} - {self.treatment_type} ({self.status})"
