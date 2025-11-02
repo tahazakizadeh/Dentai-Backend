@@ -184,6 +184,7 @@ class AppointmentStatusUpdateView(APIView):
         appointment = get_object_or_404(Appointment, pk=pk)
         new_status = request.data.get("status")
         appointment.real_status = new_status
+        appointment.status = new_status
         now_time = now().time()
 
         # ✅ شروع درمان
