@@ -183,47 +183,129 @@ class AppointmentStatusUpdateView(APIView):
     def patch(self, request, pk):
         appointment = get_object_or_404(Appointment, pk=pk)
         new_status = request.data.get("status")
+        if not new_status:
+            return Response({"error": "status is required"}, status=http_status.HTTP_400_BAD_REQUEST)
+
+        original_logical = appointment.logical_status
+        original_status = appointment.status
+
+        # هم real_status (و status قدیمی که داری استفاده می‌کنی) رو هم به‌روز کن
         appointment.real_status = new_status
         appointment.status = new_status
+        now_dt = datetime.now()
         now_time = now().time()
 
-        # ✅ شروع درمان
-        if new_status == "in_progress" and not appointment.actual_start_time:
-            appointment.actual_start_time = now_time
-            appointment.logical_status = 'active'
+        # ========================
+        # 1) رفتن به in_progress
+        # ========================
+        if new_status == "in_progress":
+            # اگر این نوبت قبلاً skipped (غایب/کنسل) بود -> بازگشت از غیبت
+            if original_logical == "skipped":
+                # ثبت زمان واقعی شروع
+                appointment.actual_start_time = now_time
+                # گذاشتن predicted_start_time به زمان فعلی (slot now)
+                appointment.predicted_start_time = now_time
+                # فعال‌سازی منطقی نوبت
+                appointment.logical_status = "active"
+                appointment.save()
+                # اینجا باید برای جا گرفتن نوبت، بقیه را به اندازه predicted_duration جابجا کنیم
+                self.push_back_after_activation(appointment, int(appointment.predicted_duration))
+            else:
+                # حالت معمول: waiting -> in_progress (تاخیر یا زود رسیدن)
+                if not appointment.actual_start_time:
+                    appointment.actual_start_time = now_time
 
-        # ✅ پایان درمان
+                # اگر predicted_start_time موجود باشه، محاسبه تاخیر
+                try:
+                    predicted_dt = datetime.combine(appointment.date, appointment.predicted_start_time)
+                    actual_dt = datetime.combine(appointment.date, appointment.actual_start_time)
+                    delay_minutes = int((actual_dt - predicted_dt).total_seconds() / 60)
+                except Exception:
+                    delay_minutes = 0
+
+                if delay_minutes != 0:
+                    # فقط نوبت‌های waiting و active (نه skipped/completed) رو shift کن
+                    self.shift_later(appointment, delay_minutes)
+
+        # ========================
+        # 2) رفتن به completed
+        # ========================
         elif new_status == "completed":
+            # باید قبلاً actual_start_time ثبت شده باشد؛ اگر نیست، ثبت کن (fallback)
+            if not appointment.actual_start_time:
+                appointment.actual_start_time = now_time
+
             start_dt = datetime.combine(appointment.date, appointment.actual_start_time)
-            end_dt = datetime.now()
-            actual_duration = int((end_dt - start_dt).total_seconds() / 60)
+            end_dt = now_dt
+            actual_duration = max(0, int((end_dt - start_dt).total_seconds() / 60))
             appointment.actual_duration = actual_duration
 
-            delay = actual_duration - appointment.predicted_duration
-            if delay != 0:
-                self.shift_later(appointment, delay)
+            delta = int(actual_duration - appointment.predicted_duration)
+            if delta != 0:
+                # shift subsequent active waiting appointments by delta
+                self.shift_later(appointment, delta)
 
-        # ✅ لغو یا عدم حضور
+        # ========================
+        # 3) رفتن به cancelled یا absent
+        # ========================
         elif new_status in ["cancelled", "absent"]:
+            # نوبت را منطقی غیرفعال کن، ولی تایم‌های نوبت‌های دیگر را تغییر نده
             appointment.logical_status = "skipped"
             appointment.skip_reason = "no_show" if new_status == "absent" else "cancelled"
-            recalculate_schedule(appointment.date)
+            # **نکته**: اینجا intentionally نه recalculate_schedule و نه shift انجام می‌دهیم
+            # تا نوبت‌های دیگر تحت تاثیر عدم حضور قرار نگیرند (طبق خواسته‌ٔ شما).
 
         appointment.save()
-        return Response({"status": "updated"})
+        return Response({"status": "updated"}, status=http_status.HTTP_200_OK)
 
-    def shift_later(self, appointment, shift_minutes):
+    # ----- توابع کمکی -----
+
+    def shift_later(self, appointment, minutes):
+        """
+        شیفت مثبت => نوبت‌های بعدی به جلو (بعدی‌ها دیرتر می‌شوند)
+        شیفت منفی => نوبت‌های بعدی به عقب (بعدی‌ها زودتر می‌شوند)
+        فقط نوبت‌هایی که logical_status='active' و status='waiting' را در نظر بگیر
+        """
         later = Appointment.objects.filter(
             date=appointment.date,
-            predicted_start_time__gt=appointment.predicted_start_time,
-            logical_status='active'
+            logical_status='active',
+            status='waiting',
+            predicted_start_time__gt=appointment.predicted_start_time
         ).order_by('predicted_start_time')
 
         for a in later:
-            dt = datetime.combine(appointment.date, a.predicted_start_time)
-            dt += timedelta(minutes=shift_minutes)
-            a.predicted_start_time = dt.time()
+            try:
+                dt = datetime.combine(a.date, a.predicted_start_time)
+            except Exception:
+                # اگر predicted_start_time خالی بود، از actual_start_time یا skip کن
+                continue
+            dt += timedelta(minutes=minutes)
+            a.predicted_start_time = dt.time().replace(microsecond=0)
             a.save()
+
+    def push_back_after_activation(self, appointment, push_minutes):
+        """
+        وقتی یک نوبت قبلاً skipped بوده و حالا فعال می‌شود (in_progress)؛
+        باید نوبت‌های بعدی را به اندازه predicted_durationِ این نوبت push کنیم
+        تا جای کافی برای درمان او ایجاد شود.
+        """
+        later = Appointment.objects.filter(
+            date=appointment.date,
+            logical_status='active',
+            status='waiting'
+        ).exclude(pk=appointment.pk).order_by('predicted_start_time')
+
+        # فقط آنهایی که predicted_start_time >= appointment.predicted_start_time را جابجا کن
+        for a in later:
+            try:
+                dt = datetime.combine(a.date, a.predicted_start_time)
+            except Exception:
+                continue
+            if dt >= datetime.combine(appointment.date, appointment.predicted_start_time):
+                dt += timedelta(minutes=push_minutes)
+                a.predicted_start_time = dt.time().replace(microsecond=0)
+                a.save()
+
 
 
 # -------------------------------
