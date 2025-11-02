@@ -255,7 +255,17 @@ class AppointmentSearchByDateView(APIView):
         except ValueError:
             return Response({"error": "فرمت تاریخ معتبر نیست. از YYYY-MM-DD استفاده کنید."}, status=400)
 
-        appointments = Appointment.objects.filter(date=date).select_related('patient__user').order_by('id')
+        appointments = Appointment.objects.filter(date=date).annotate(
+            status_order=Case(
+                When(status='in_progress', then=Value(1)),
+                When(status='waiting', then=Value(2)),
+                When(status='completed', then=Value(3)),
+                When(status='absent', then=Value(4)),
+                default=Value(5),
+                output_field=IntegerField(),
+            )
+        ).order_by('status_order', 'predicted_start_time')
+
         serializer = AppointmentOutputSerializer(appointments, many=True)
         return Response(serializer.data)
 
