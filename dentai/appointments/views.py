@@ -109,18 +109,18 @@ class AppointmentViewSet(viewsets.ModelViewSet):
         recalculate_schedule(instance.date)
         return Response({"status": "marked_as_skipped"}, status=http_status.HTTP_200_OK)
     def get(self, request):
-        statuses = Appointment.objects.values("status").annotate(count=Count("id"))
-        print("📋 وضعیت‌های موجود:", list(statuses))
-        appointments = Appointment.objects.annotate(
+        appointments = Appointment.objects..annotate(
             status_order=Case(
                 When(status='in_progress', then=Value(1)),
                 When(status='waiting', then=Value(2)),
-                When(status='absent', then=Value(3)),
+                When(status='absent', then=Value(3)),     
                 When(status='completed', then=Value(4)),
-                default=Value(5),
+                When(status='cancelled', then=Value(5)),
+                default=Value(6),
                 output_field=IntegerField(),
             )
         ).order_by('status_order', 'predicted_start_time')
+
 
         serializer = AppointmentSerializer(appointments, many=True)
         return Response(serializer.data)
