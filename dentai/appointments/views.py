@@ -113,8 +113,8 @@ class AppointmentViewSet(viewsets.ModelViewSet):
             status_order=Case(
                 When(status='in_progress', then=Value(1)),
                 When(status='waiting', then=Value(2)),
-                When(status='completed', then=Value(3)),
-                When(status='absent', then=Value(4)),
+                When(status='absent', then=Value(3)),
+                When(status='completed', then=Value(4)),
                 default=Value(5),
                 output_field=IntegerField(),
             )
