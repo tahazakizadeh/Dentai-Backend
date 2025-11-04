@@ -1,6 +1,6 @@
 
 from kavenegar import KavenegarAPI, APIException, HTTPException
-from django.db.models import Case, When, Value, IntegerField
+from django.db.models import Case, When, Value, IntegerField, Count
 from rest_framework import viewsets, status as http_status
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -109,6 +109,8 @@ class AppointmentViewSet(viewsets.ModelViewSet):
         recalculate_schedule(instance.date)
         return Response({"status": "marked_as_skipped"}, status=http_status.HTTP_200_OK)
     def get(self, request):
+        statuses = Appointment.objects.values("status").annotate(count=Count("id"))
+        print("📋 وضعیت‌های موجود:", list(statuses))
         appointments = Appointment.objects.annotate(
             status_order=Case(
                 When(status='in_progress', then=Value(1)),
