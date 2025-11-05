@@ -192,7 +192,8 @@ class AppointmentStatusUpdateView(APIView):
         new_status = request.data.get("status")
         if not new_status:
             return Response({"error": "status is required"}, status=http_status.HTTP_400_BAD_REQUEST)
-
+            
+        original_predicted = appointment.predicted_start_time
         original_logical = appointment.logical_status
         original_status = appointment.status
 
@@ -209,6 +210,7 @@ class AppointmentStatusUpdateView(APIView):
             # اگر این نوبت قبلاً skipped (غایب/کنسل) بود -> بازگشت از غیبت
             if original_logical == "skipped":
                 # ثبت زمان واقعی شروع
+                
                 appointment.actual_start_time = now_time
                 # گذاشتن predicted_start_time به زمان فعلی (slot now)
                 appointment.predicted_start_time = now_time
@@ -216,7 +218,7 @@ class AppointmentStatusUpdateView(APIView):
                 appointment.logical_status = "active"
                 appointment.save()
                 # اینجا باید برای جا گرفتن نوبت، بقیه را به اندازه predicted_duration جابجا کنیم
-                self.push_back_after_activation(appointment, int(appointment.predicted_duration))
+                self.push_back_after_activation(appointment, int(appointment.predicted_duration), reference_predicted=original_predicted)
             else:
                 # حالت معمول: waiting -> in_progress (تاخیر یا زود رسیدن)
                 if not appointment.actual_start_time:
@@ -267,28 +269,25 @@ class AppointmentStatusUpdateView(APIView):
 
     # ----- توابع کمکی -----
 
-    def shift_later(self, appointment, minutes):
-        """
-        شیفت مثبت => نوبت‌های بعدی به جلو (بعدی‌ها دیرتر می‌شوند)
-        شیفت منفی => نوبت‌های بعدی به عقب (بعدی‌ها زودتر می‌شوند)
-        فقط نوبت‌هایی که logical_status='active' و status='waiting' را در نظر بگیر
-        """
+    def shift_later(self, appointment, minutes, reference_predicted=None):
+        if reference_predicted is None:
+            ref_dt = datetime.combine(appointment.date, appointment.predicted_start_time)
+        else:
+            ref_dt = datetime.combine(appointment.date, reference_predicted)
+    
         later = Appointment.objects.filter(
             date=appointment.date,
             logical_status='active',
-            status='waiting',
-            predicted_start_time__gt=appointment.predicted_start_time
+            status='waiting'
         ).order_by('predicted_start_time')
-
+    
         for a in later:
-            try:
-                dt = datetime.combine(a.date, a.predicted_start_time)
-            except Exception:
-                # اگر predicted_start_time خالی بود، از actual_start_time یا skip کن
-                continue
-            dt += timedelta(minutes=minutes)
-            a.predicted_start_time = dt.time().replace(microsecond=0)
-            a.save()
+            a_dt = datetime.combine(a.date, a.predicted_start_time)
+            if a_dt > ref_dt:
+                new_dt = a_dt + timedelta(minutes=minutes)
+                a.predicted_start_time = new_dt.time().replace(microsecond=0)
+                a.save(update_fields=['predicted_start_time'])
+
 
     def push_back_after_activation(self, appointment, push_minutes):
         """
@@ -313,6 +312,24 @@ class AppointmentStatusUpdateView(APIView):
                 a.predicted_start_time = dt.time().replace(microsecond=0)
                 a.save()
 
+    def push_back_after_activation(self, appointment, push_minutes, reference_predicted=None):
+        if reference_predicted is None:
+            ref_dt = datetime.combine(appointment.date, appointment.predicted_start_time)
+        else:
+            ref_dt = datetime.combine(appointment.date, reference_predicted)
+    
+        later = Appointment.objects.filter(
+            date=appointment.date,
+            logical_status='active',
+            status='waiting'
+        ).exclude(pk=appointment.pk).order_by('predicted_start_time')
+    
+        for a in later:
+            a_dt = datetime.combine(a.date, a.predicted_start_time)
+            if a_dt >= ref_dt:
+                new_dt = a_dt + timedelta(minutes=push_minutes)
+                a.predicted_start_time = new_dt.time().replace(microsecond=0)
+                a.save(update_fields=['predicted_start_time'])
 
 
 # -------------------------------
