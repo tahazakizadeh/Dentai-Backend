@@ -102,12 +102,20 @@ class AppointmentViewSet(viewsets.ModelViewSet):
     serializer_class = AppointmentSerializer
 
     def destroy(self, request, *args, **kwargs):
+        """حذف کامل نوبت و باززمان‌بندی سایر نوبت‌ها"""
         instance = self.get_object()
-        instance.logical_status = 'skipped'
-        instance.skip_reason = 'deleted_by_admin'
-        instance.save()
-        recalculate_schedule(instance.date)
-        return Response({"status": "marked_as_skipped"}, status=http_status.HTTP_200_OK)
+        appointment_date = instance.date
+
+        # حذف کامل از دیتابیس
+        instance.delete()
+
+        # باززمان‌بندی نوبت‌های همان روز
+        recalculate_schedule(appointment_date)
+
+        return Response(
+            {"detail": "Appointment deleted and schedule recalculated."},
+            status=http_status.HTTP_204_NO_CONTENT
+        )
     def get(self, request):
         appointments = Appointment.objects.annotate(
             status_order=Case(
