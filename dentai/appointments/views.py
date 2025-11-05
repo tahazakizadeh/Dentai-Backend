@@ -20,7 +20,7 @@ from .serializers import (
     AppointmentSerializer,
     AppointmentDoctorNoteUpdateSerializer,
 )
-
+ 
 logger = logging.getLogger(__name__)
 
 # -------------------------------
