@@ -105,16 +105,13 @@ class AppointmentViewSet(viewsets.ModelViewSet):
         """حذف کامل نوبت و باززمان‌بندی سایر نوبت‌ها"""
         instance = self.get_object()
         appointment_date = instance.date
-
-        # حذف کامل از دیتابیس
+    
         instance.delete()
-
-        # باززمان‌بندی نوبت‌های همان روز
         recalculate_schedule(appointment_date)
-
+    
         return Response(
-            {"detail": "Appointment deleted and schedule recalculated."},
-            status=http_status.HTTP_204_NO_CONTENT
+            {"message": "نوبت با موفقیت حذف شد و زمان‌بندی مجدد انجام شد."},
+            status=http_status.HTTP_200_OK
         )
     def get(self, request):
         appointments = Appointment.objects.annotate(
