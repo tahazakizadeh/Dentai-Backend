@@ -11,6 +11,7 @@ from django.utils.timezone import now
 from fuzzywuzzy import process
 from django.conf import settings
 import jdatetime, time, pickle, logging, numpy as np
+from django.utils import timezone
 
 from .models import Appointment
 from accounts.models import Patient
