@@ -202,37 +202,43 @@ class AppointmentStatusUpdateView(APIView):
         now_dt = datetime.now()
         now_time = now().time()
 
-        # ========================
+      # ========================
         # 1) رفتن به in_progress
         # ========================
         if new_status == "in_progress":
-            # اگر این نوبت قبلاً skipped (غایب/کنسل) بود -> بازگشت از غیبت
+            now_time = timezone.now().time()
+        
+            # --- ثبت زمان واقعی شروع ---
+            appointment.actual_start_time = now_time
+        
+            # --- اگر از skipped برمی‌گردد ---
             if original_logical == "skipped":
-                # ثبت زمان واقعی شروع
-                appointment.actual_start_time = now_time
-                # گذاشتن predicted_start_time به زمان فعلی (slot now)
+                # زمان پیش‌بینی‌شده را برابر الان بگذار
                 appointment.predicted_start_time = now_time
-                # فعال‌سازی منطقی نوبت
                 appointment.logical_status = "active"
                 appointment.save()
-                # اینجا باید برای جا گرفتن نوبت، بقیه را به اندازه predicted_duration جابجا کنیم
-                self.push_back_after_activation(appointment, int(appointment.predicted_duration))
-            else:
-                # حالت معمول: waiting -> in_progress (تاخیر یا زود رسیدن)
-                if not appointment.actual_start_time:
-                    appointment.actual_start_time = now_time
-
-                # اگر predicted_start_time موجود باشه، محاسبه تاخیر
-                try:
-                    predicted_dt = datetime.combine(appointment.date, appointment.predicted_start_time)
-                    actual_dt = datetime.combine(appointment.date, appointment.actual_start_time)
-                    delay_minutes = int((actual_dt - predicted_dt).total_seconds() / 60)
-                except Exception:
-                    delay_minutes = 0
-
-                if delay_minutes != 0:
-                    # فقط نوبت‌های waiting و active (نه skipped/completed) رو shift کن
-                    self.shift_later(appointment, delay_minutes)
+        
+                # همه نوبت‌های بعدی را به اندازه طول درمان فعلی جابه‌جا کن
+                self.shift_later(appointment, int(appointment.predicted_duration))
+                return Response({"status": "reactivated_from_skipped"})
+        
+            # --- اگر از waiting (عادی) وارد in_progress شده ---
+            try:
+                predicted_dt = datetime.combine(appointment.date, appointment.predicted_start_time)
+                actual_dt = datetime.combine(appointment.date, appointment.actual_start_time)
+                delay_minutes = int((actual_dt - predicted_dt).total_seconds() / 60)
+            except Exception:
+                delay_minutes = 0
+        
+            # ذخیره نهایی
+            appointment.save()
+        
+            # اگر تأخیر یا زودتر شروع شده، نوبت‌های بعدی را شیفت کن
+            if delay_minutes != 0:
+                self.shift_later(appointment, delay_minutes)
+        
+            return Response({"status": "in_progress_started"})
+        
 
         # ========================
         # 2) رفتن به completed
@@ -358,11 +364,27 @@ class AppointmentAddTimeView(APIView):
     def patch(self, request, pk):
         appointment = get_object_or_404(Appointment, pk=pk)
         extra = int(request.data.get("extra_minutes", 0))
+    
+        if extra == 0:
+            return Response({"detail": "extra_minutes must be non-zero"}, status=400)
+    
+        # 🔹 افزایش مدت پیش‌بینی‌شده نوبت فعلی
         appointment.predicted_duration += extra
         appointment.save()
-        recalculate_schedule(appointment.date)
+    
+        # 🔹 پیدا کردن نوبت‌های بعدی همان روز
+        next_appointments = Appointment.objects.filter(
+            date=appointment.date,
+            predicted_start_time__gt=appointment.predicted_start_time
+        ).order_by("predicted_start_time")
+    
+        # 🔹 شیفت دادن نوبت‌های بعدی به‌اندازه زمان اضافه‌شده
+        for nxt in next_appointments:
+            nxt.predicted_start_time += timedelta(minutes=extra)
+            nxt.save()
+    
         return Response({"status": "extra_time_added"})
-
+    
 
 # -------------------------------
 # 🔍 جستجوی نوبت بر اساس تاریخ
