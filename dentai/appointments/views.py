@@ -220,7 +220,7 @@ class AppointmentStatusUpdateView(APIView):
                 appointment.save()
         
                 # همه نوبت‌های بعدی را به اندازه طول درمان فعلی جابه‌جا کن
-                self.shift_later(appointment, int(appointment.predicted_duration))
+                self.shift_from_now(appointment, int(appointment.predicted_duration))
                 return Response({"status": "reactivated_from_skipped"})
         
             # --- اگر از waiting (عادی) وارد in_progress شده ---
@@ -353,6 +353,28 @@ class AppointmentStatusUpdateView(APIView):
     
                 a.predicted_start_time = new_dt.time().replace(microsecond=0)
                 a.save(update_fields=["predicted_start_time"])
+    def shift_from_now(self, appointment, minutes):
+        """
+        شیفت همه‌ی نوبت‌های بعد از زمان فعلی (نه بر اساس predicted_start_time قدیمی)
+        وقتی نوبت غیرفعال (skipped) دوباره فعال می‌شود.
+        """
+        now_time = timezone.now().time()
+    
+        later = Appointment.objects.filter(
+            date=appointment.date,
+            logical_status='active',
+            status='waiting',
+            predicted_start_time__gte=now_time
+        ).order_by('predicted_start_time')
+    
+        for nxt in later:
+            try:
+                dt = datetime.combine(nxt.date, nxt.predicted_start_time)
+                dt += timedelta(minutes=minutes)
+                nxt.predicted_start_time = dt.time().replace(microsecond=0)
+                nxt.save()
+            except Exception:
+                continue
 
 
 
