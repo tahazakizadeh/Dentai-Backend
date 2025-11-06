@@ -361,30 +361,31 @@ class AppointmentStatusUpdateView(APIView):
 # -------------------------------
 class AppointmentAddTimeView(APIView):
     permission_classes = [IsAuthenticated]
-
     def patch(self, request, pk):
         appointment = get_object_or_404(Appointment, pk=pk)
         extra = int(request.data.get("extra_minutes", 0))
-    
-        if extra == 0:
-            return Response({"detail": "extra_minutes must be non-zero"}, status=400)
-    
-        # 🔹 افزایش مدت پیش‌بینی‌شده نوبت فعلی
+
+        # افزایش زمان پیش‌بینی‌شده برای خود نوبت
         appointment.predicted_duration += extra
         appointment.save()
-    
-        # 🔹 پیدا کردن نوبت‌های بعدی همان روز
-        next_appointments = Appointment.objects.filter(
+
+        # شیفت نوبت‌های بعدی در همان روز
+        later = Appointment.objects.filter(
             date=appointment.date,
+            logical_status='active',
+            status='waiting',
             predicted_start_time__gt=appointment.predicted_start_time
-        ).order_by("predicted_start_time")
-    
-        # 🔹 شیفت دادن نوبت‌های بعدی به‌اندازه زمان اضافه‌شده
-        for nxt in next_appointments:
-            nxt.predicted_start_time += timedelta(minutes=extra)
-            nxt.save()
-    
-        return Response({"status": "extra_time_added"})
+        ).order_by('predicted_start_time')
+
+        for nxt in later:
+            if nxt.predicted_start_time:
+                dt = datetime.combine(nxt.date, nxt.predicted_start_time)
+                dt += timedelta(minutes=extra)
+                nxt.predicted_start_time = dt.time().replace(microsecond=0)
+                nxt.save()
+
+        return Response({"status": "extra_time_added"}, status=http_status.HTTP_200_OK)
+
     
 
 # -------------------------------
