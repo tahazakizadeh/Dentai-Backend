@@ -241,16 +241,23 @@ class AppointmentStatusUpdateView(APIView):
             # باید قبلاً actual_start_time ثبت شده باشد؛ اگر نیست، ثبت کن (fallback)
             if not appointment.actual_start_time:
                 appointment.actual_start_time = now_time
-
+        
             start_dt = datetime.combine(appointment.date, appointment.actual_start_time)
             end_dt = now_dt
             actual_duration = max(0, int((end_dt - start_dt).total_seconds() / 60))
             appointment.actual_duration = actual_duration
-
-            delta = int(actual_duration - appointment.predicted_duration)
-            if delta != 0:
-                # shift subsequent active waiting appointments by delta
-                self.shift_later(appointment, delta)
+            appointment.save(update_fields=["actual_duration", "status"])
+        
+            # 🔹 تفاوت بین زمان واقعی و پیش‌بینی
+            diff = int(actual_duration - appointment.predicted_duration)
+        
+            # اگر بیشتر طول کشیده → عقب بنداز
+            if diff > 0:
+                self.shift_later(appointment, diff)
+            # اگر زودتر تموم شده → به جلو ببر
+            elif diff < 0:
+                self.pull_earlier(appointment, abs(diff))
+        
 
         # ========================
         # 3) رفتن به cancelled یا absent
@@ -312,6 +319,33 @@ class AppointmentStatusUpdateView(APIView):
                 dt += timedelta(minutes=push_minutes)
                 a.predicted_start_time = dt.time().replace(microsecond=0)
                 a.save()
+    def pull_earlier(self, appointment, minutes):
+        """
+        وقتی درمان زودتر از زمان پیش‌بینی‌شده تموم شد،
+        نوبت‌های بعدی باید به اندازه `minutes` زودتر شروع بشن.
+        """
+        ref_dt = datetime.combine(appointment.date, appointment.predicted_start_time)
+        later = Appointment.objects.filter(
+            date=appointment.date,
+            logical_status='active',
+            status='waiting'
+        ).order_by('predicted_start_time')
+    
+        for a in later:
+            try:
+                a_dt = datetime.combine(a.date, a.predicted_start_time)
+            except Exception:
+                continue
+    
+            # فقط نوبت‌های بعد از این یکی رو جابجا کن
+            if a_dt > ref_dt:
+                new_dt = a_dt - timedelta(minutes=minutes)
+                # جلوگیری از تداخل زمانی (مثلاً نیاد قبل از زمان این درمان)
+                if new_dt < ref_dt + timedelta(minutes=1):
+                    new_dt = ref_dt + timedelta(minutes=1)
+    
+                a.predicted_start_time = new_dt.time().replace(microsecond=0)
+                a.save(update_fields=["predicted_start_time"])
 
 
 
