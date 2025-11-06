@@ -355,24 +355,28 @@ class AppointmentStatusUpdateView(APIView):
                 a.save(update_fields=["predicted_start_time"])
     def shift_from_now(self, appointment, minutes):
         """
-        شیفت همه‌ی نوبت‌های بعد از زمان فعلی (نه بر اساس predicted_start_time قدیمی)
-        وقتی نوبت غیرفعال (skipped) دوباره فعال می‌شود.
+        وقتی یک نوبت از skipped به in_progress برمی‌گردد:
+        تمام نوبت‌های 'waiting' در همان روز (بعد از زمان فعلی) یا حتی قبل از آن
+        باید طوری شیفت شوند که جا برای درمان جدید باز شود.
         """
-        now_time = timezone.now().time()
-    
-        later = Appointment.objects.filter(
+        # فقط نوبت‌های waiting فعال در همان روز
+        waiting_appointments = Appointment.objects.filter(
             date=appointment.date,
             logical_status='active',
-            status='waiting',
-            predicted_start_time__gte=now_time
+            status='waiting'
         ).order_by('predicted_start_time')
     
-        for nxt in later:
+        now_time = timezone.now().time()
+    
+        for nxt in waiting_appointments:
+            # فقط اونایی که هنوز درمانشون شروع نشده (حتی اگه زمان‌شون گذشته)
             try:
                 dt = datetime.combine(nxt.date, nxt.predicted_start_time)
-                dt += timedelta(minutes=minutes)
-                nxt.predicted_start_time = dt.time().replace(microsecond=0)
-                nxt.save()
+                # فقط نوبت‌هایی که بعد از زمان فعلی هستن یا الان در صفن
+                if dt.time() >= now_time or nxt.predicted_start_time <= now_time:
+                    dt += timedelta(minutes=minutes)
+                    nxt.predicted_start_time = dt.time().replace(microsecond=0)
+                    nxt.save()
             except Exception:
                 continue
 
