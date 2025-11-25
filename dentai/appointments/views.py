@@ -12,6 +12,7 @@ from fuzzywuzzy import process
 from django.conf import settings
 import jdatetime, time, pickle, logging, numpy as np
 from django.utils import timezone
+import threading
 
 from .models import Appointment
 from accounts.models import Patient
@@ -169,11 +170,12 @@ class BatchAppointmentAddView(APIView):
                 logical_status='active',
                 date=date
             )
-
-            sms_sent = send_appointment_sms(patient, date.strftime('%Y-%m-%d'), current_time.time())
-            time.sleep(2)
-            if not sms_sent:
-                logger.warning(f"SMS not sent for {appt.id}")
+            
+            threading.Thread(
+                target=send_appointment_sms,
+                args=(patient,date.strftime('%Y-%m-%d'), current_time.time()),
+                daemon=True
+            ).start()
 
             current_time += timedelta(minutes=duration)
             scheduled.append(appt)
