@@ -183,6 +183,165 @@ class BatchAppointmentAddView(APIView):
         output = AppointmentOutputSerializer(scheduled, many=True)
         return Response({"status": "generated", "scheduled": output.data})
 
+#-------------------------------------
+    جابه‌جایی ترتیب نوبت‌های یک روز:
+    - محدودیت:
+        * فقط نوبت‌های waiting و waiting_room قابل جابه‌جایی هستند.
+          in_progress → waiting_room → waiting → absent → completed → cancelled
+        * اگر کسی تلاش کند نوبت را بین کتگوری‌ها جابه‌جا کند، خطا می‌دهد.
+#--------------------------------------
+class AppointmentReorderView(APIView):
+
+    permission_classes = [IsAuthenticated]
+
+    @transaction.atomic
+    def post(self, request):
+        items = request.data.get("appointments")
+        if not isinstance(items, list) or not items:
+            return Response(
+                {"error": "فیلد appointments الزامی است و باید یک لیست باشد."},
+                status=http_status.HTTP_400_BAD_REQUEST,
+            )
+
+        # استخراج آیدی‌ها از ورودی
+        try:
+            new_ids = [int(item["id"]) for item in items]
+        except (KeyError, TypeError, ValueError):
+            return Response(
+                {"error": "هر آیتم در appointments باید شامل فیلد عددی id باشد."},
+                status=http_status.HTTP_400_BAD_REQUEST,
+            )
+
+        today = timezone.now().date()
+
+        # نوبت‌های فعال امروز به همان ترتیبی که در داشبورد نشان می‌دهی
+        original_qs = Appointment.objects.filter(
+            date=today,
+            logical_status='active',
+        ).annotate(
+            status_order=Case(
+                When(status='in_progress', then=Value(1)),
+                When(status='waiting_room', then=Value(2)),
+                When(status='waiting', then=Value(3)),
+                When(status='absent', then=Value(4)),
+                When(status='completed', then=Value(5)),
+                When(status='cancelled', then=Value(6)),
+                default=Value(7),
+                output_field=IntegerField(),
+            )
+        ).order_by('status_order', 'predicted_start_time')
+
+        original_ids = [a.id for a in original_qs]
+
+        if not original_ids:
+            return Response(
+                {"error": "برای امروز نوبتی یافت نشد."},
+                status=http_status.HTTP_400_BAD_REQUEST,
+            )
+
+        # باید دقیقاً همان آیدی‌ها را بدهد، نه کم‌تر، نه بیشتر، نه تکراری
+        if len(original_ids) != len(new_ids) or set(original_ids) != set(new_ids):
+            return Response(
+                {
+                    "error": "لیست appointments باید دقیقاً شامل همه نوبت‌های فعال امروز باشد.",
+                    "expected_ids": original_ids,
+                },
+                status=http_status.HTTP_400_BAD_REQUEST,
+            )
+
+        id_to_appt = {a.id: a for a in original_qs}
+
+        # ساخت بلوک‌های وضعیت از ترتیب اصلی
+        blocks = []  # هر بلوک: (status, [ids...])
+        current_status = None
+        current_ids = []
+
+        for ap in original_qs:
+            if ap.status != current_status:
+                if current_status is not None:
+                    blocks.append((current_status, current_ids))
+                current_status = ap.status
+                current_ids = [ap.id]
+            else:
+                current_ids.append(ap.id)
+        if current_status is not None:
+            blocks.append((current_status, current_ids))
+
+        # حالا روی ترتیب جدید حرکت می‌کنیم و می‌سنجیم آیا قوانین کتگوری رعایت شده یا نه
+        idx = 0
+        for status, orig_block_ids in blocks:
+            block_len = len(orig_block_ids)
+            new_block_ids = new_ids[idx:idx + block_len]
+
+            if len(new_block_ids) != block_len:
+                return Response(
+                    {"error": "ساختار بلوک‌های وضعیت در داده‌ی ارسالی خراب شده است."},
+                    status=http_status.HTTP_400_BAD_REQUEST,
+                )
+
+            # ۱) همه‌ی آیدی‌های این بلوک باید واقعاً همین status را داشته باشند
+            for ap_id in new_block_ids:
+                ap = id_to_appt.get(ap_id)
+                if ap is None:
+                    return Response(
+                        {"error": f"نوبت با آیدی {ap_id} یافت نشد."},
+                        status=http_status.HTTP_400_BAD_REQUEST,
+                    )
+                if ap.status != status:
+                    return Response(
+                        {
+                            "error": "جابجایی بین کتگوری‌ها مجاز نیست.",
+                            "detail": f"نوبت با آیدی {ap_id} در وضعیت {ap.status} است "
+                                      f"و نمی‌تواند در بلوک وضعیت {status} قرار بگیرد.",
+                        },
+                        status=http_status.HTTP_400_BAD_REQUEST,
+                    )
+
+            # ۲) برای وضعیت‌هایی به جز waiting / waiting_room، ترتیب حتی داخل بلوک هم نباید عوض شود
+            if status not in ['waiting', 'waiting_room'] and new_block_ids != orig_block_ids:
+                return Response(
+                    {
+                        "error": "فقط نوبت‌های در انتظار (waiting و waiting_room) قابل جابجایی هستند.",
+                        "detail": f"نوبت‌های وضعیت {status} نباید جابجا شوند.",
+                    },
+                    status=http_status.HTTP_400_BAD_REQUEST,
+                )
+
+            idx += block_len
+
+        # اگر به اینجا رسیدیم، یعنی فقط داخل waiting / waiting_room جابجا شده و ساختار کلی حفظ شده 👍
+
+        # حالا فقط زمان‌بندی waiting / waiting_room را از نو می‌چینیم
+        # نقطه شروع = زمان شروع اولین نوبت صف انتظار در ترتیب اصلی
+        waiting_original = [a for a in original_qs if a.status in ['waiting', 'waiting_room']]
+        if not waiting_original:
+            # هیچ نوبت صف انتظاری نیست، پس چیزی برای بازچینش نداریم
+            return Response({"status": "nothing_to_reorder"}, status=http_status.HTTP_200_OK)
+
+        first_waiting = waiting_original[0]
+        current_dt = datetime.combine(today, first_waiting.predicted_start_time)
+
+        # ترتیب جدید نوبت‌های صف انتظار از روی new_ids
+        new_waiting_ids = [pk for pk in new_ids if id_to_appt[pk].status in ['waiting', 'waiting_room']]
+
+        try:
+            for ap_id in new_waiting_ids:
+                ap = id_to_appt[ap_id]
+                ap.predicted_start_time = current_dt.time().replace(microsecond=0)
+                ap.save(update_fields=['predicted_start_time'])
+
+                duration = ap.predicted_duration or 0
+                current_dt += timedelta(minutes=duration)
+
+        except Exception as e:
+            logger.error(f"Error while reordering waiting appointments: {e}")
+            return Response(
+                {"error": "در حین ذخیره نوبت‌های جابجا شده خطایی رخ داد.", "detail": str(e)},
+                status=http_status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response({"status": "reordered"}, status=http_status.HTTP_200_OK)
+
 #--------------------------------
 # منطق اضافه کردن بیمار اتفاقی
 #--------------------------------
