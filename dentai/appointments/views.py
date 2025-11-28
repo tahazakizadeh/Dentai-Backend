@@ -183,6 +183,107 @@ class BatchAppointmentAddView(APIView):
         output = AppointmentOutputSerializer(scheduled, many=True)
         return Response({"status": "generated", "scheduled": output.data})
 
+#--------------------------------
+# منطق اضافه کردن بیمار اتفاقی
+#--------------------------------
+class RandomAppointmentAddView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        patient_id = request.data.get("patient_id")
+        treatment_type = request.data.get("treatment_type")
+
+        if not patient_id or not treatment_type:
+            return Response(
+                {"error": "patient_id و treatment_type الزامی هستند"},
+                status=http_status.HTTP_400_BAD_REQUEST
+            )
+
+        # ----------------------
+        # 1) دریافت بیمار
+        # ----------------------
+        try:
+            patient = Patient.objects.get(id=patient_id)
+        except Patient.DoesNotExist:
+            return Response({"error": "بیمار یافت نشد"}, status=404)
+
+        today = timezone.now().date()
+
+        # ----------------------
+        # 2) پیدا کردن اولین waiting
+        # ----------------------
+        first_waiting = Appointment.objects.filter(
+            date=today,
+            logical_status='active',
+            status='waiting'
+        ).order_by('predicted_start_time').first()
+
+        # ----------------------
+        # 3) محاسبه زمان شروع نوبت اتفاقی
+        # ----------------------
+        if first_waiting:
+            predicted_start = first_waiting.predicted_start_time
+        else:
+            # اگر waiting وجود نداشت → آخرین active
+            last_active = Appointment.objects.filter(
+                date=today,
+                logical_status='active'
+            ).order_by('-predicted_start_time').first()
+
+            predicted_start = last_active.predicted_start_time if last_active else timezone.now().time()
+
+        # ----------------------
+        # 4) محاسبه زمان مدت درمان (ML)
+        # ----------------------
+        try:
+            duration = predict_duration(treatment_type)
+        except Exception as e:
+            return Response({"error": str(e)}, status=400)
+
+        # ----------------------
+        # 5) ساخت نوبت جدید
+        # ----------------------
+        new_appt = Appointment.objects.create(
+            patient=patient,
+            treatment_type=treatment_type,
+            predicted_start_time=predicted_start,
+            predicted_duration=duration,
+            date=today,
+            status='waiting_room',
+            real_status='waiting_room',
+            logical_status='active'
+        )
+
+        # ----------------------
+        # 6) شیفت دادن تمام waitingها پس از زمان شروع
+        # ----------------------
+        waiting_to_shift = Appointment.objects.filter(
+            date=today,
+            logical_status='active',
+            status='waiting',
+            predicted_start_time__gte=predicted_start
+        ).order_by('predicted_start_time')
+
+        for w in waiting_to_shift:
+            dt = datetime.combine(today, w.predicted_start_time)
+            dt += timedelta(minutes=duration)
+            w.predicted_start_time = dt.time().replace(microsecond=0)
+            w.save(update_fields=["predicted_start_time"])
+
+        # ----------------------
+        # 7) ارسال SMS به صورت Thread
+        # ----------------------
+        threading.Thread(
+            target=send_appointment_sms,
+            args=(patient, today, predicted_start),
+            daemon=True
+        ).start()
+
+        # ----------------------
+        # 8) خروجی
+        # ----------------------
+        output = AppointmentOutputSerializer(new_appt).data
+        return Response({"status": "random_added", "appointment": output})
 
 # -------------------------------
 # 🔄 تغییر وضعیت نوبت‌ها
