@@ -10,7 +10,8 @@ from .views import (
     AppointmentAddTimeView,
     AppointmentSearchByDateView,
     AppointmentDoctorNoteUpdateView,
-    TreatmentDurationListView
+    TreatmentDurationListView,
+    RandomAppointmentAddView
 
 )
 
@@ -24,5 +25,6 @@ urlpatterns = [
     path('appointments/search-by-date/', AppointmentSearchByDateView.as_view(), name='appointment-search-by-date'),
     path('appointments/<int:pk>/update-note/', AppointmentDoctorNoteUpdateView.as_view(), name='update-appointment-note'),
     path('appointments/treatments-durations/', TreatmentDurationListView.as_view(), name='treatment-durations'),
+    path('appointments/random-add/', RandomAppointmentAddView.as_view(), name='random-add'),
     path('', include(router.urls)),
 ]
