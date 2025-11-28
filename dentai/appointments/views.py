@@ -14,6 +14,8 @@ import jdatetime, time, pickle, logging, numpy as np
 from django.utils import timezone
 import threading
 
+from django.db import transaction
+
 from .models import Appointment
 from accounts.models import Patient
 from .serializers import (
