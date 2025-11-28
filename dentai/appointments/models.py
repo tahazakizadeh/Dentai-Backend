@@ -7,6 +7,7 @@ from accounts.models import Patient
 class Appointment(models.Model):
     STATUS_CHOICES = [
         ('waiting', 'در انتظار'),
+        ('waiting_room', 'در انتظار در مطب'),
         ('in_progress', 'در حال درمان'),
         ('completed', 'تکمیل شده'),
         ('cancelled', 'لغو شده'),
