@@ -186,11 +186,11 @@ class BatchAppointmentAddView(APIView):
         return Response({"status": "generated", "scheduled": output.data})
 
 #-------------------------------------
-    جابه‌جایی ترتیب نوبت‌های یک روز:
-    - محدودیت:
-        * فقط نوبت‌های waiting و waiting_room قابل جابه‌جایی هستند.
-          in_progress → waiting_room → waiting → absent → completed → cancelled
-        * اگر کسی تلاش کند نوبت را بین کتگوری‌ها جابه‌جا کند، خطا می‌دهد.
+#    جابه‌جایی ترتیب نوبت‌های یک روز:
+#    - محدودیت:
+#        * فقط نوبت‌های waiting و waiting_room قابل جابه‌جایی هستند.
+#          in_progress → waiting_room → waiting → absent → completed → cancelled
+#        * اگر کسی تلاش کند نوبت را بین کتگوری‌ها جابه‌جا کند، خطا می‌دهد.
 #--------------------------------------
 class AppointmentReorderView(APIView):
 
