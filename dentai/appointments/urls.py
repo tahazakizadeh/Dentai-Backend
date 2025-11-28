@@ -11,7 +11,8 @@ from .views import (
     AppointmentSearchByDateView,
     AppointmentDoctorNoteUpdateView,
     TreatmentDurationListView,
-    RandomAppointmentAddView
+    RandomAppointmentAddView,
+    AppointmentReorderView
 
 )
 
@@ -26,5 +27,6 @@ urlpatterns = [
     path('appointments/<int:pk>/update-note/', AppointmentDoctorNoteUpdateView.as_view(), name='update-appointment-note'),
     path('appointments/treatments-durations/', TreatmentDurationListView.as_view(), name='treatment-durations'),
     path('appointments/random-add/', RandomAppointmentAddView.as_view(), name='random-add'),
+    path('appointments/reorder/', AppointmentReorderView.as_view(), name='reorder-appointments'),
     path('', include(router.urls)),
 ]
