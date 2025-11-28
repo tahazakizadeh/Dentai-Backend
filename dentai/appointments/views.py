@@ -292,7 +292,7 @@ class AppointmentStatusUpdateView(APIView):
         later = Appointment.objects.filter(
             date=appointment.date,
             logical_status='active',
-            status='waiting',
+            status__in=['waiting', 'waiting_room'],
             predicted_start_time__gt=appointment.predicted_start_time
         ).order_by('predicted_start_time')
 
@@ -337,7 +337,7 @@ class AppointmentStatusUpdateView(APIView):
         later = Appointment.objects.filter(
             date=appointment.date,
             logical_status='active',
-            status='waiting'
+            status__in=['waiting', 'waiting_room']
         ).order_by('predicted_start_time')
     
         for a in later:
@@ -365,7 +365,7 @@ class AppointmentStatusUpdateView(APIView):
         waiting_appointments = Appointment.objects.filter(
             date=appointment.date,
             logical_status='active',
-            status='waiting'
+            status__in=['waiting', 'waiting_room']
         ).order_by('predicted_start_time')
     
         now_time = timezone.now().time()
@@ -401,7 +401,7 @@ class AppointmentAddTimeView(APIView):
         later = Appointment.objects.filter(
             date=appointment.date,
             logical_status='active',
-            status='waiting',
+            status__in=['waiting', 'waiting_room'],
             predicted_start_time__gt=appointment.predicted_start_time
         ).order_by('predicted_start_time')
 
@@ -433,10 +433,11 @@ class AppointmentSearchByDateView(APIView):
         appointments = Appointment.objects.filter(date=date).annotate(
             status_order=Case(
                 When(status='in_progress', then=Value(1)),
-                When(status='waiting', then=Value(2)),
-                When(status='absent', then=Value(3)),
-                When(status='completed', then=Value(4)),
-                default=Value(5),
+                When(status='waiting_room', then=Value(2)),
+                When(status='waiting', then=Value(3)),
+                When(status='absent', then=Value(4)),
+                When(status='completed', then=Value(5)),
+                default=Value(6),
                 output_field=IntegerField(),
             )
         ).order_by('status_order', 'predicted_start_time')
