@@ -24,8 +24,7 @@ class PatientBalance(models.Model):
 
 class Payment(models.Model):
     # Payment به خود patient وصل است
-    patient = models.ForeignKey(Patient, on_delete=models.CASCADE, related_name='payments')
-
+    patient = models.ForeignKey(Patient, on_delete=models.CASCADE, related_name='payments', null=True, blank=True)
     # اگر پرداخت مربوط به یک نوبت خاص باشد
     appointment = models.ForeignKey(
         Appointment,
