@@ -1,26 +1,58 @@
 # payments/models.py
 
 from django.db import models
+from django.db.models import Sum
 from appointments.models import Appointment
+from accounts.models import Patient   # ← اگر اسم اپ چیز دیگری است، این را اصلاح کن
 
-class Payment(models.Model):
-    appointment = models.OneToOneField(Appointment, on_delete=models.CASCADE, related_name='payment')
-    total_amount = models.PositiveIntegerField(default=0)
-    paid_amount = models.PositiveIntegerField(default=0)
-    is_paid = models.BooleanField(default=False)
-    payment_method = models.CharField(max_length=50, blank=True)
-    tracking_code = models.CharField(max_length=100, blank=True)
-    
-    payment_number = models.PositiveIntegerField()  # ← شماره‌ی محلی برای بیمار
 
-    def save(self, *args, **kwargs):
-        if not self.pk and not self.payment_number:
-            patient = self.appointment.patient
-            previous_payments = Payment.objects.filter(appointment__patient=patient).count()
-            self.payment_number = previous_payments + 1
+class PatientBalance(models.Model):
+    patient = models.OneToOneField(Patient, on_delete=models.CASCADE)
+    # مبلغ کل درمان که منشی تعیین می‌کند – می‌تواند خالی باشد
+    total_debt = models.PositiveBigIntegerField(null=True, blank=True)
+    total_paid = models.PositiveBigIntegerField(default=0)
 
-        self.is_paid = self.paid_amount >= self.total_amount    
-        super().save(*args, **kwargs)
+    @property
+    def remaining(self):
+        if self.total_debt is None:
+            return None
+        return self.total_debt - self.total_paid
 
     def __str__(self):
-        return f"Payment #{self.payment_number} for {self.appointment}"
+        return f"Balance for {self.patient}"
+
+
+class Payment(models.Model):
+    # حالا Payment به خود patient وصل است
+    patient = models.ForeignKey(Patient, on_delete=models.CASCADE, related_name='payments')
+
+    # اگر این پرداخت مربوط به یک نوبت خاص باشد
+    appointment = models.ForeignKey(
+        Appointment,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='payments'
+    )
+
+    # مبلغ این تراکنش
+    amount = models.PositiveBigIntegerField(default=0)
+
+    PAYMENT_METHOD_CHOICES = (
+        ('pos', 'کارت‌خوان مطب'),
+        ('gateway', 'درگاه آنلاین'),
+    )
+    payment_method = models.CharField(
+        max_length=20,
+        choices=PAYMENT_METHOD_CHOICES,
+        blank=True
+    )
+
+    tracking_code = models.CharField(max_length=100, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        base = f"Payment {self.amount} for {self.patient}"
+        if self.appointment_id:
+            base += f" (appointment {self.appointment_id})"
+        return base
