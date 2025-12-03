@@ -3,7 +3,7 @@
 from django.db import models
 from django.db.models import Sum
 from appointments.models import Appointment
-from accounts.models import Patient   # ← اگر اسم اپ چیز دیگری است، این را اصلاح کن
+from accounts.models import Patient   
 
 
 class PatientBalance(models.Model):
@@ -23,10 +23,10 @@ class PatientBalance(models.Model):
 
 
 class Payment(models.Model):
-    # حالا Payment به خود patient وصل است
+    # Payment به خود patient وصل است
     patient = models.ForeignKey(Patient, on_delete=models.CASCADE, related_name='payments')
 
-    # اگر این پرداخت مربوط به یک نوبت خاص باشد
+    # اگر پرداخت مربوط به یک نوبت خاص باشد
     appointment = models.ForeignKey(
         Appointment,
         null=True,
@@ -35,7 +35,7 @@ class Payment(models.Model):
         related_name='payments'
     )
 
-    # مبلغ این تراکنش
+    # مبلغ تراکنش
     amount = models.PositiveBigIntegerField(default=0)
 
     PAYMENT_METHOD_CHOICES = (
