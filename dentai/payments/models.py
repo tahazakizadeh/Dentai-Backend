@@ -7,7 +7,7 @@ from accounts.models import Patient
 
 
 class PatientBalance(models.Model):
-    patient = models.OneToOneField(Patient, on_delete=models.CASCADE)
+    patient = models.OneToOneField(Patient, on_delete=models.CASCADE, null=True, blank=True)
     # مبلغ کل درمان که منشی تعیین می‌کند – می‌تواند خالی باشد
     total_debt = models.PositiveBigIntegerField(null=True, blank=True)
     total_paid = models.PositiveBigIntegerField(default=0)
@@ -49,7 +49,7 @@ class Payment(models.Model):
     )
 
     tracking_code = models.CharField(max_length=100, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True )
 
     def __str__(self):
         base = f"Payment {self.amount} for {self.patient}"
