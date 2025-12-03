@@ -54,7 +54,9 @@ REST_FRAMEWORK = {
 
 
 
-ALLOWED_HOSTS = ['*']  
+ALLOWED_HOSTS = os.getenv('DJANGO_ALLOWED_HOSTS', '*').split(',')
+
+CSRF_TRUSTED_ORIGINS = os.getenv('CSRF_TRUSTED_ORIGINS', '').split(',') if not DEBUG else []
 
 DATABASES = {
     'default': {
@@ -123,7 +125,10 @@ MIDDLEWARE.insert(1, 'whitenoise.middleware.WhiteNoiseMiddleware')
 
 ROOT_URLCONF = 'dentai_core.urls'
 
-CORS_ALLOW_ALL_ORIGINS = True
+# CORS
+CORS_ALLOW_ALL_ORIGINS = DEBUG  # در حالت تولید False می‌شود
+CORS_ALLOWED_ORIGINS = [o for o in os.getenv('CORS_ALLOWED_ORIGINS', '').split(',') if o]
+
 
 TEMPLATES = [
     {
@@ -188,8 +193,24 @@ MEDIA_ROOT = os.getenv('MEDIA_ROOT', '/vol/media')
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
+# settings.py
+DATA_UPLOAD_MAX_MEMORY_SIZE = 104857600  # 100 MB
+FILE_UPLOAD_MAX_MEMORY_SIZE = 104857600  # 100 MB
+
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+
+LOGGING = {
+  "version": 1,
+  "disable_existing_loggers": False,
+  "handlers": {"console": {"class": "logging.StreamHandler"}},
+  "root": {"handlers": ["console"], "level": "INFO"},
+  "loggers": {
+    "django.request": {"handlers": ["console"], "level": "WARNING", "propagate": False},
+    "django.db.backends": {"handlers": ["console"], "level": "ERROR"},
+  }
+}

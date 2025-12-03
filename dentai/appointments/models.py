@@ -7,6 +7,7 @@ from accounts.models import Patient
 class Appointment(models.Model):
     STATUS_CHOICES = [
         ('waiting', 'در انتظار'),
+        ('waiting_room', 'در انتظار در مطب'),
         ('in_progress', 'در حال درمان'),
         ('completed', 'تکمیل شده'),
         ('cancelled', 'لغو شده'),
@@ -22,6 +23,12 @@ class Appointment(models.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='waiting')
     date = models.DateField()
     doctor_note = models.TextField(blank=True, null=True)  # یادداشت پزشک
+    real_status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='waiting')  
+    logical_status = models.CharField(max_length=20,choices=[
+            ('active', 'Active'),
+            ('skipped', 'Skipped'),
+        ], default='active')
+    skip_reason = models.CharField(max_length=100, null=True, blank=True)
 
     def __str__(self):
         return f"{self.patient} - {self.treatment_type} ({self.status})"
