@@ -3,7 +3,7 @@
 from django.db import models
 from django.db.models import Sum
 from appointments.models import Appointment
-from patients.models import Patient   # ← اگر اسم اپ چیز دیگری است، این را اصلاح کن
+from accounts.models import Patient   # ← اگر اسم اپ چیز دیگری است، این را اصلاح کن
 
 
 class PatientBalance(models.Model):
