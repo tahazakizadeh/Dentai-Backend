@@ -1,79 +1,79 @@
 # payments/views.py
 
-from rest_framework import generics
+from rest_framework import generics, status
 from rest_framework.views import APIView
-from .models import Payment
-from .serializers import PaymentSerializer
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from .models import Payment, PatientBalance
+from .serializers import PaymentSerializer, PatientBalanceSerializer
 
-class PaymentDetailView(generics.RetrieveAPIView):
-    queryset = Payment.objects.all().order_by("id")
-    serializer_class = PaymentSerializer
-    permission_classes = [IsAuthenticated]  # یا AllowAny اگر عمومی می‌خوای
-    
-    def get_queryset(self):
-        patient_id = self.kwargs['patient_id']
-        return Payment.objects.filter(appointment__patient_id=patient_id).order_by('payment_number')
-
-    def get_object(self):
-        return self.get_queryset().get(payment_number=self.kwargs['payment_number'])
-
-class PaymentUpdateView(generics.UpdateAPIView):
-    queryset = Payment.objects.all().order_by("id")
-    serializer_class = PaymentSerializer
-    permission_classes = [IsAuthenticated]
-    def update(self, request, *args, **kwargs):
-        print("=== UPDATE PAYMENT ===")
-        print("METHOD:", request.method)
-        print("DATA:", request.data)
-        return super().update(request, *args, **kwargs)
-
-    def get_queryset(self):
-        patient_id = self.kwargs['patient_id']
-        return Payment.objects.filter(appointment__patient_id=patient_id).order_by('payment_number')
-
-    def get_object(self):
-        return self.get_queryset().get(payment_number=self.kwargs['payment_number'])
 
 class PaymentsByPatientView(generics.ListAPIView):
-    serializer_class = PaymentSerializer           
+    """
+    لیست همه پرداخت‌های یک بیمار (نوبتی + آزاد)
+    """
+    serializer_class = PaymentSerializer
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         patient_id = self.kwargs['patient_id']
-        return Payment.objects.filter(appointment__patient_id=patient_id).order_by('payment_number')
+        return Payment.objects.filter(patient_id=patient_id).order_by('created_at')
 
 
-class LatestPaymentNumber(APIView):
+class PaymentDetailView(generics.RetrieveAPIView):
+    """
+    جزئیات یک پرداخت با id
+    """
+    queryset = Payment.objects.all().order_by("id")
+    serializer_class = PaymentSerializer
     permission_classes = [IsAuthenticated]
 
-    def get(self, request, patient_id):
-        latest = (
-            Payment.objects
-            .filter(appointment__patient_id=patient_id)
-            .order_by('-payment_number')
-            .first()
-        )
-        return Response({
-            "patient_id": patient_id,
-            "latest_payment_number": latest.payment_number if latest else 0
-        })
-    
-class LatestPaymentView(APIView):
+
+class PaymentUpdateView(generics.UpdateAPIView):
+    """
+    ویرایش مبلغ / روش پرداخت / کد رهگیری یک پرداخت
+    """
+    queryset = Payment.objects.all().order_by("id")
+    serializer_class = PaymentSerializer
     permission_classes = [IsAuthenticated]
 
-    def get(self, request, patient_id):
-        latest = (
-            Payment.objects
-            .filter(appointment__patient_id=patient_id)
-            .select_related('appointment__patient__user')
-            .order_by('-payment_number')
-            .first()
-        )
-        if not latest:
-            return Response({"error": "پرداختی یافت نشد."}, status=404)
 
-        serializer = PaymentSerializer(latest)
+class ManualPaymentCreateView(APIView):
+    """
+    ساخت پرداخت دستی (بدون وابستگی به نوبت)
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, patient_id):
+        data = request.data.copy()
+        data['patient'] = patient_id
+        serializer = PaymentSerializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        payment = serializer.save()
+        return Response(PaymentSerializer(payment).data, status=status.HTTP_201_CREATED)
+
+
+class PatientBalanceView(APIView):
+    """
+    گرفتن / تنظیم هزینه کل درمان و خلاصه مالی بیمار
+    GET → summary
+    PATCH → تغییر total_debt
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get_object(self, patient_id):
+        balance, _ = PatientBalance.objects.get_or_create(patient_id=patient_id)
+        return balance
+
+    def get(self, request, patient_id):
+        balance = self.get_object(patient_id)
+        serializer = PatientBalanceSerializer(balance)
+        return Response(serializer.data)
+
+    def patch(self, request, patient_id):
+        balance = self.get_object(patient_id)
+        serializer = PatientBalanceSerializer(balance, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
         return Response(serializer.data)
