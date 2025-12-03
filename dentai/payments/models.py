@@ -3,11 +3,11 @@
 from django.db import models
 from django.db.models import Sum
 from appointments.models import Appointment
-from accounts.models import Patient   
+from patients.models import Patient   # ← اگر اسم اپ چیز دیگری است، این را اصلاح کن
 
 
 class PatientBalance(models.Model):
-    patient = models.OneToOneField(Patient, on_delete=models.CASCADE, null=True, blank=True)
+    patient = models.OneToOneField(Patient, on_delete=models.CASCADE)
     # مبلغ کل درمان که منشی تعیین می‌کند – می‌تواند خالی باشد
     total_debt = models.PositiveBigIntegerField(null=True, blank=True)
     total_paid = models.PositiveBigIntegerField(default=0)
@@ -23,9 +23,10 @@ class PatientBalance(models.Model):
 
 
 class Payment(models.Model):
-    # Payment به خود patient وصل است
-    patient = models.ForeignKey(Patient, on_delete=models.CASCADE, related_name='payments', null=True, blank=True)
-    # اگر پرداخت مربوط به یک نوبت خاص باشد
+    # حالا Payment به خود patient وصل است
+    patient = models.ForeignKey(Patient, on_delete=models.CASCADE, related_name='payments')
+
+    # اگر این پرداخت مربوط به یک نوبت خاص باشد
     appointment = models.ForeignKey(
         Appointment,
         null=True,
@@ -34,7 +35,7 @@ class Payment(models.Model):
         related_name='payments'
     )
 
-    # مبلغ تراکنش
+    # مبلغ این تراکنش
     amount = models.PositiveBigIntegerField(default=0)
 
     PAYMENT_METHOD_CHOICES = (
@@ -48,7 +49,7 @@ class Payment(models.Model):
     )
 
     tracking_code = models.CharField(max_length=100, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True, null=True )
+    created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         base = f"Payment {self.amount} for {self.patient}"
