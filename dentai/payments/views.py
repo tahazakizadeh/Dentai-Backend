@@ -77,3 +77,23 @@ class PatientBalanceView(APIView):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data)
+        
+class LatestPaymentView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, patient_id):
+        latest = (
+            Payment.objects
+            .filter(patient_id=patient_id)
+            .order_by('-created_at', '-id')
+            .first()
+        )
+
+        if not latest:
+            return Response(
+                {"detail": "هیچ پرداختی برای این بیمار ثبت نشده است."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        serializer = PaymentSerializer(latest)
+        return Response(serializer.data, status=status.HTTP_200_OK)
