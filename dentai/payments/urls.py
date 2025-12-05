@@ -7,6 +7,7 @@ from .views import (
     PaymentsByPatientView,
     ManualPaymentCreateView,
     PatientBalanceView,
+    LatestPaymentView,
 )
 
 urlpatterns = [
@@ -22,4 +23,10 @@ urlpatterns = [
     # جزئیات / ویرایش تک پرداخت (بر اساس id خودش)
     path('payments/<int:pk>/', PaymentDetailView.as_view(), name='payment-detail'),
     path('payments/<int:pk>/edit/', PaymentUpdateView.as_view(), name='payment-edit'),
+
+    path(
+    'patient/<int:patient_id>/latest-payment/',
+    LatestPaymentView.as_view(),
+    name='latest-payment'),
+
 ]
