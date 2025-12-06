@@ -64,6 +64,39 @@ def send_appointment_sms(patient, date, time):
     except Exception as e:
         logger.warning(f"SMS sending failed: {e}")
         return False
+def send_reminder_sms(appointment):
+    """
+    ارسال SMS یادآوری یک ساعت قبل از نوبت
+    Template: SMS2
+    Token: زمان نوبت (HH:MM)
+    """
+    try:
+        api = KavenegarAPI(settings.KAVENEGAR_API_KEY)
+        patient = appointment.patient
+        phone = "+98" + patient.user.phone_number[1:]
+
+        # زمان نوبت، فقط ساعت و دقیقه
+        time_str = appointment.predicted_start_time.strftime("%H:%M")
+
+        params = {
+            'sender': '2000660110',
+            'receptor': phone,
+            'token': time_str,   # ⏰ توکن = ساعت نوبت
+            'template': 'SMS2',
+            'type': 'sms',
+        }
+
+        api.verify_lookup(params)
+
+        # فقط بعد از موفقیت، علامت بزن که ارسال شده
+        appointment.sms2_sent = True
+        appointment.save(update_fields=["sms2_sent"])
+
+        return True
+
+    except Exception as e:
+        logger.warning(f"Reminder SMS (SMS2) failed: {e}")
+        return False
 
 
 def predict_duration(treatment_type):
