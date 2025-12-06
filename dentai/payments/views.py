@@ -4,10 +4,11 @@ from rest_framework import generics, status
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from accounts.models import Patient
 
 from .models import Payment, PatientBalance
 from .serializers import PaymentSerializer, PatientBalanceSerializer
-
+from django.shortcuts import get_object_or_404
 
 class PaymentsByPatientView(generics.ListAPIView):
     """
