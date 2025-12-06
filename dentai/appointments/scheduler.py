@@ -1,10 +1,16 @@
 import time
 import logging
-from django import setup
 import os
+import sys
+import django
 
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'core.settings')
-setup()
+# ✅ اضافه کردن ریشه پروژه به PYTHONPATH
+BASE_DIR = "/app/dentai"
+sys.path.append(BASE_DIR)
+
+# ✅ تنظیمات Django
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'dentai_core.settings')
+django.setup()
 
 from appointments.views import check_and_send_reminders
 
@@ -18,5 +24,8 @@ def run_scheduler():
         except Exception as e:
             logger.error(f"Scheduler error: {e}")
 
-        # هر 60 ثانیه یک‌بار
         time.sleep(60)
+
+
+if __name__ == "__main__":
+    run_scheduler()
