@@ -38,6 +38,9 @@ class PatientViewSet(viewsets.ModelViewSet):
         return Response({"status": "deleted"}, status=status.HTTP_200_OK)
 
     def perform_destroy(self, instance):
+        from payments.models import PatientBalance
+        PatientBalance.objects.filter(patient=instance).delete()
+        
         user = instance.user
         instance.delete()
         user.delete()
