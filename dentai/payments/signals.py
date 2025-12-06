@@ -29,6 +29,8 @@ def _recalculate_patient_paid(patient: Patient):
     """
     جمع کل پرداخت‌های بیمار را دوباره حساب می‌کند.
     """
+    if not patient or not Patient.objects.filter(id=patient.id).exists():
+        return
     total = (
         Payment.objects
         .filter(patient=patient)
@@ -47,7 +49,6 @@ def update_balance_on_payment_save(sender, instance, **kwargs):
     if not instance.patient_id:
         return
     _recalculate_patient_paid(instance.patient)
-
 
 @receiver(post_delete, sender=Payment)
 def update_balance_on_payment_delete(sender, instance, **kwargs):
