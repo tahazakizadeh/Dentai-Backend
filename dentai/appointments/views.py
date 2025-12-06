@@ -130,6 +130,34 @@ def recalculate_schedule(date):
         current_time += timedelta(minutes=appt.predicted_duration)
         appt.save()
 
+def check_and_send_reminders():
+    """
+    این تابع باید مثلاً هر یک دقیقه یک‌بار توسط کران/شِدولِر صدا زده شود.
+    کارش:
+        - پیدا کردن نوبت‌هایی که حدوداً ۱ ساعت دیگر شروع می‌شوند
+        - فقط برای نوبت‌های active + waiting / waiting_room
+        - فقط وقتی sms2_sent=False
+    """
+    now_dt = timezone.now()
+
+    # بازه زمانی تارگت: از 1 ساعت بعد تا 1 ساعت و 1 دقیقه بعد
+    target_start = now_dt + timedelta(hours=1)
+    target_end = now_dt + timedelta(hours=1, minutes=1)
+
+    # فقط نوبت‌های امروز (برای سادگی)
+    today = now_dt.date()
+
+    appointments = Appointment.objects.filter(
+        logical_status='active',
+        status__in=['waiting', 'waiting_room'],
+        sms2_sent=False,
+        date=today,
+        predicted_start_time__gte=target_start.time(),
+        predicted_start_time__lte=target_end.time(),
+    )
+
+    for appt in appointments:
+        send_reminder_sms(appt)
 
 # -------------------------------
 # 📋 ViewSet اصلی
