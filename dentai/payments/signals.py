@@ -43,9 +43,14 @@ def _recalculate_patient_paid(patient: Patient):
 
 @receiver(post_save, sender=Payment)
 def update_balance_on_payment_save(sender, instance, **kwargs):
+    # اگر به هر دلیلی payment بدون patient ساخته شد، اینجا سیستم کرش نکنه
+    if not instance.patient_id:
+        return
     _recalculate_patient_paid(instance.patient)
 
 
 @receiver(post_delete, sender=Payment)
 def update_balance_on_payment_delete(sender, instance, **kwargs):
+    if not instance.patient_id:
+        return
     _recalculate_patient_paid(instance.patient)
