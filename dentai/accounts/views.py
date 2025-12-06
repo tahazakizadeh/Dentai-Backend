@@ -5,6 +5,8 @@ from rest_framework.decorators import action
 from .models import Patient, User
 from .serializers import PatientSerializer, UserSerializer, PatientSearchSerializer,PatientMiniSerializer
 from django.contrib.auth import authenticate
+from django.db import transaction
+
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.permissions import IsAuthenticated
 from django.db.models import Q
@@ -39,11 +41,13 @@ class PatientViewSet(viewsets.ModelViewSet):
 
     def perform_destroy(self, instance):
         from payments.models import PatientBalance
-        PatientBalance.objects.filter(patient=instance).delete()
-        
-        user = instance.user
-        instance.delete()
-        user.delete()
+    
+        with transaction.atomic():
+            PatientBalance.objects.filter(patient=instance).delete()
+    
+            user = instance.user
+            instance.delete()
+            user.delete()
 
 # ورود منشی با username/password
 class StaffLoginView(APIView):
