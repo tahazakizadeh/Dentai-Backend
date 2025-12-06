@@ -29,6 +29,8 @@ class Appointment(models.Model):
             ('skipped', 'Skipped'),
         ], default='active')
     skip_reason = models.CharField(max_length=100, null=True, blank=True)
+    
+    sms2_sent = models.BooleanField(default=False)
 
     def __str__(self):
         return f"{self.patient} - {self.treatment_type} ({self.status})"
