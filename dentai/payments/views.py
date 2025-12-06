@@ -48,10 +48,12 @@ class ManualPaymentCreateView(APIView):
 
     def post(self, request, patient_id):
         data = request.data.copy()
-        data['patient'] = patient_id
-        serializer = PaymentSerializer(data=data)
+        
+        serializer = PaymentSerializer(data=data, context={'request': request})
         serializer.is_valid(raise_exception=True)
-        payment = serializer.save()
+        patient = get_object_or_404(Patient, pk=patient_id)
+
+        payment = serializer.save(patient=patient)
         return Response(PaymentSerializer(payment).data, status=status.HTTP_201_CREATED)
 
 
