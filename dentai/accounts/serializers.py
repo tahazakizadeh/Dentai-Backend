@@ -4,14 +4,33 @@ from .models import User, Patient
 # ------------------ User ------------------
 class UserSerializer(serializers.ModelSerializer):
     username = serializers.CharField(read_only=True)
+
     class Meta:
         model  = User
         fields = ['id', 'username', 'first_name', 'last_name', 'phone_number', 'national_id']
-
+        extra_kwargs = {
+            'phone_number': {'validators': []},  # ✅ جلوی ارور تکراری رو می‌گیره
+        }
 
 # ------------------ Patient ------------------
 class PatientSerializer(serializers.ModelSerializer):
     user = UserSerializer()
+
+    # ✅ این متد جدید رو اینجا قرار بده
+    def to_internal_value(self, data):
+        data = data.copy()
+
+        def unpack(section_name):
+            section = data.pop(section_name, None)
+            if isinstance(section, dict):
+                for k, v in section.items():
+                    data[k] = v
+
+        unpack("personal_info")
+        unpack("treatment_consent")
+        unpack("clinical_evaluation")
+
+        return super().to_internal_value(data)
 
     class Meta:
         model  = Patient
@@ -89,6 +108,9 @@ class PatientSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         user_data = validated_data.pop("user", None)
+        print("RAW REQUEST DATA:", self.context["request"].data)
+        print("VALIDATED DATA:", validated_data)
+
         if user_data:
 
             first_name = user_data.get("first_name", instance.user.first_name).strip()
@@ -107,10 +129,23 @@ class PatientSerializer(serializers.ModelSerializer):
             for attr, val in user_data.items():
                 setattr(instance.user, attr, val)
             instance.user.save()
-
-        # flat data: بقیه فیلدها مستقیم در validated_data هستند
+        # ---- NESTED GROUPS ----
+        request = self.context.get("request")
+    
+        if request:
+            data = request.data
+    
+            for group in ["personal_info", "treatment_consent", "clinical_evaluation"]:
+                section = data.get(group)
+                if isinstance(section, dict):
+                    for key, value in section.items():
+                        if hasattr(instance, key):
+                            setattr(instance, key, value)
+    
+        # ---- FLAT FIELDS (اگر همزمان Flat هم فرستاده شده باشد) ----
         for attr, val in validated_data.items():
             setattr(instance, attr, val)
+    
         instance.save()
         return instance
 
