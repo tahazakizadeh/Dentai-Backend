@@ -158,6 +158,22 @@ def check_and_send_reminders():
 
     for appt in appointments:
         send_reminder_sms(appt)
+def clamp_waiting_to_now(date):
+    now_time = timezone.now().time().replace(second=0, microsecond=0)
+
+    waiting = Appointment.objects.filter(
+        date=date,
+        logical_status='active',
+        status__in=['waiting', 'waiting_room'],
+        predicted_start_time__lt=now_time
+    ).order_by('predicted_start_time', 'id')
+
+    current_time = now_time
+
+    for ap in waiting:
+        ap.predicted_start_time = current_time
+        ap.save(update_fields=['predicted_start_time'])
+        current_time += timedelta(minutes=ap.predicted_duration or 0)
 
 # -------------------------------
 # 📋 ViewSet اصلی
@@ -595,7 +611,7 @@ class AppointmentStatusUpdateView(APIView):
             actual_duration = max(0, int((end_dt - start_dt).total_seconds() / 60))
             appointment.actual_duration = actual_duration
             appointment.save(update_fields=["actual_duration", "status"])
-        
+            clamp_waiting_to_now(appointment.date)
             # 🔹 تفاوت بین زمان واقعی و پیش‌بینی
             diff = int(actual_duration - appointment.predicted_duration)
         
