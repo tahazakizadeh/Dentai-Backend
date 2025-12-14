@@ -532,6 +532,22 @@ class AppointmentStatusUpdateView(APIView):
         # 1) رفتن به in_progress
         # ========================
         if new_status == "in_progress":
+            
+            # ⛔️ محدودیت همزمانی (خیلی مهم)
+            MAX_CONCURRENT = 1  # فعلاً
+        
+            cnt = Appointment.objects.filter(
+                date=appointment.date,
+                logical_status='active',
+                status='in_progress'
+            ).exclude(pk=appointment.pk).count()
+        
+            if cnt >= MAX_CONCURRENT:
+                return Response(
+                    {"error": "در حال حاضر یک درمان در حال انجام است."},
+                    status=http_status.HTTP_409_CONFLICT
+                )
+        
             now_time = timezone.now().time()
         
             # --- ثبت زمان واقعی شروع ---
@@ -559,9 +575,9 @@ class AppointmentStatusUpdateView(APIView):
             # ذخیره نهایی
             appointment.save()
         
-            # اگر تأخیر یا زودتر شروع شده، نوبت‌های بعدی را شیفت کن
-            if delay_minutes != 0:
-                self.shift_later(appointment, delay_minutes)
+            # # اگر تأخیر یا زودتر شروع شده، نوبت‌های بعدی را شیفت کن
+            # if delay_minutes != 0:
+            #     self.shift_later(appointment, delay_minutes)
         
             return Response({"status": "in_progress_started"})
         
