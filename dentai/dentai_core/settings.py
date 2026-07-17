@@ -59,10 +59,10 @@ ALLOWED_HOSTS = os.getenv('DJANGO_ALLOWED_HOSTS', '*').split(',')
 CSRF_TRUSTED_ORIGINS = os.getenv('CSRF_TRUSTED_ORIGINS', '').split(',') if not DEBUG else []
 
 DATABASES = {
-    "default": dj_database_url.config(
-        default=f"postgresql://{os.getenv('POSTGRES_USER')}:{os.getenv('POSTGRES_PASSWORD')}@{os.getenv('POSTGRES_HOST')}:{os.getenv('POSTGRES_PORT')}/{os.getenv('POSTGRES_DB')}",
+    "default": dj_database_url.parse(
+        os.environ["DATABASE_URL"],
         conn_max_age=600,
-        ssl_require=not DEBUG,
+        ssl_require=True,
     )
 }
 
