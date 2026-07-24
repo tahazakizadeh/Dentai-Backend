@@ -10,11 +10,11 @@ echo "✅ Collecting static files..."
 python manage.py collectstatic --noinput
 
 echo "✅ Starting SMS2 Reminder Scheduler..."
-python appointments/scheduler.py &
+python appointments/scheduler.py 
 
 echo "✅ Starting Gunicorn..."
-gunicorn dentai_core.wsgi:application \
-  --bind 0.0.0.0:8000 \
-  --workers 1 \
-  --access-logfile '-' \
-  --error-logfile '-'
+exec gunicorn dentai_core.wsgi:application \
+    --bind 0.0.0.0:8000 \
+    --workers=1 \
+    --access-logfile - \
+    --error-logfile -
