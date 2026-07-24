@@ -1,1 +1,1 @@
-web: gunicorn dentai_core.wsgi
+web: gunicorn dentai_core.wsgi:application
