@@ -10,7 +10,7 @@ echo "✅ Collecting static files..."
 python manage.py collectstatic --noinput
 
 echo "✅ Starting SMS2 Reminder Scheduler..."
-python appointments/scheduler.py 
+python appointments/scheduler.py  &
 
 echo "Before gunicorn"
 echo "✅ Starting Gunicorn..."
