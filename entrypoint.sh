@@ -16,7 +16,7 @@ echo "Before gunicorn"
 echo "✅ Starting Gunicorn..."
 exec gunicorn dentai_core.wsgi:application \
     --bind 0.0.0.0:${PORT:-8000}  \
-    --workers 2 \
+    --workers 1 \
     --log-level debug \
     --access-logfile - \
     --error-logfile -
